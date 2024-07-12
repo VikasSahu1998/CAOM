@@ -8,6 +8,7 @@ import { AuthService } from '../Service/auth.service';
 import { Router } from '@angular/router';
 import { StreamServiceService } from '../Service/stream-service.service';
 import { Plane } from '../target';
+import { Subscription } from 'rxjs';
 
 declare module 'leaflet' {
   interface MarkerOptions {
@@ -34,7 +35,7 @@ export class MapComponent implements OnInit {
   geoJsonLayer!: L.GeoJSON;
   map!: L.Map;
   airportLayerGroup!: any;
-  wmsUrl = "http://ec2-3-15-190-20.us-east-2.compute.amazonaws.com:8080/geoserver/wms"
+  wmsUrl = "http://ec2-18-116-61-52.us-east-2.compute.amazonaws.com:8080/geoserver/wms"
   private waypointLayer!: L.TileLayer.WMS;
   private nonConvLineDataLayer!: L.TileLayer.WMS;
   private convLineDataLayer!: L.TileLayer.WMS;
@@ -47,7 +48,7 @@ export class MapComponent implements OnInit {
   private thailandenroute!: L.TileLayer.WMS;
   private FIR!: L.TileLayer.WMS;
   private India_FIR!: L.TileLayer.WMS;
-
+  private subscription: Subscription | null = null;
   menuOpen: boolean = false;
 
   toggleMenu() {
@@ -125,28 +126,30 @@ export class MapComponent implements OnInit {
     this.watchAirportChanges();
 
   }
+
   ngOnDestroy(): void {
     this.mobileQuery.removeListener(this._mobileQueryListener);
   }
 
-  onMapReady(map: L.Map) {
-    this.map = map;
-  }
-
   spireAPI(): void {
-    this.flightService.listenToStream().subscribe({
-      next: (data: { satellite: string[][], terrestrial: string[][] }) => {
-        this.updateMapWithPlaneData(data);
-      },
-      error: err => console.error('Error listening to stream', err)
-    });
+    if (this.subscription) {
+      this.subscription.unsubscribe();
+      this.subscription = null;
+      this.clearMarkers();
+    } else {
+      this.subscription = this.flightService.listenToStream().subscribe({
+        next: (data: { satellite: string[][], terrestrial: string[][] }) => {
+          this.updateMapWithPlaneData(data);
+        },
+        error: err => console.error('Error listening to stream', err)
+      });
+    }
   }
 
   private updateMapWithPlaneData(data: { satellite: string[][], terrestrial: string[][] }): void {
-    if (data.satellite.length > 1 || data.terrestrial.length > 1) {
-      console.log('Processing plane data:', data);
-
+    if (data.satellite.length > 0 || data.terrestrial.length > 0) {
       [...data.satellite, ...data.terrestrial].forEach((plane: string[]) => {
+       
         const target: Plane = {
           icao_address: plane[1],
           callsign: plane[7],
@@ -166,35 +169,62 @@ export class MapComponent implements OnInit {
           spi: plane[12] === 'true',
           position_source: parseInt(plane[13])
         };
-
+        
         if (!isNaN(target.latitude) && !isNaN(target.longitude)) {
           if (this.markers[target.icao_address]) {
-            // Move existing marker
+         
             this.markers[target.icao_address].setLatLng([target.latitude, target.longitude]);
+            const iconElement = this.markers[target.icao_address].getElement();
+            if (iconElement) {
+              
+              iconElement.style.transform = `rotate(${target.heading}deg)`;
+            }
           } else {
-            // Create a new marker with a plane icon
-            const planeIcon = L.icon({
-              iconUrl: 'assets/plane.png', // Replace with the path to your plane icon
-              iconSize: [32, 32], // Adjust size as needed
-              iconAnchor: [16, 16] // Adjust anchor as needed
+            // Create new marker
+            const planeSVG = `
+              <svg
+                fill="none"
+                height="20"
+                width="20"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 12 12"
+                class="plane-icon"
+                style="transform-origin: center;"
+              >
+                <path
+                  d="M7.052 9.416c-.314-.055-.58-.11-.593-.123-.022-.022.127-.857.153-.857.025 0 .905.682.991.768.087.087.112.22.053.28-.018.017-.29-.013-.604-.068zm2.667-2.23c-.07-.029-.77-.36-1.553-.735a94.104 94.104 0 00-1.457-.69c-.018-.005-.032-.431-.032-.948v-.94l.154.12c.085.067.197.165.25.217.093.093.097.093.131.001.03-.08.055-.097.158-.112a.443.443 0 01.215.026c.083.04.093.07.094.312l.002.267.342.285.342.284.054-.08c.063-.095.256-.132.363-.07.053.032.072.106.077.306l.008.265.47.386c.26.213.495.425.524.472.057.095.074.6.022.653-.02.019-.093.01-.164-.019zM6.073 9.85c-.097 0-.157-.173-.281-.816a27.339 27.339 0 01-.161-.889c-.037-.272-.042-5.76-.006-6.09.042-.385.133-.646.275-.788.063-.063.141-.112.173-.108.178.022.332.247.416.613.055.239.084 5.859.033 6.325-.052.463-.3 1.638-.36 1.697-.03.03-.07.056-.089.056zm-.941-.439c-.368.064-.604.085-.632.057-.024-.025-.03-.093-.014-.152.027-.098.079-.145.535-.494.277-.212.511-.386.52-.386.008 0 .052.197.096.437l.081.437-.586.101zM3.93 6.481c-.843.401-1.557.734-1.586.74-.083.02-.1-.022-.111-.265-.016-.364.008-.399.568-.863l.482-.399.001-.238c.003-.275.07-.371.255-.365.092.003.138.026.183.093l.06.09.34-.278.34-.279.007-.268c.004-.147.026-.286.05-.31.05-.05.328-.056.376-.007a.24.24 0 01.048.097c.011.054.053.032.271-.143l.258-.206.003.935c.002.514 0 .936-.004.937l-1.54.73z"
+                  fill="#0B0C10"
+                />
+              </svg>
+            `;
+  
+            const planeIcon = L.divIcon({
+              html: planeSVG,
+              className: 'custom-plane-icon',
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
             });
-
+  
             const marker = L.marker([target.latitude, target.longitude], { icon: planeIcon });
             marker.addTo(this.map).on('click', () => {
               this.displayPlaneData(target);
             });
-
+  
             this.markers[target.icao_address] = marker;
+  
+            // Apply rotation via CSS after marker is added
+            const iconElement = marker.getElement();
+            if (iconElement) {
+              iconElement.style.transform = `rotate(${target.heading}deg)`;
+            }
           }
-        } else {
-          console.warn('Missing or invalid latitude or longitude for target:', target);
         }
       });
     } else {
       console.error('No valid plane data found', data);
     }
   }
-
+  
   private displayPlaneData(target: Plane): void {
     L.popup()
       .setLatLng([target.latitude, target.longitude])
@@ -214,6 +244,13 @@ export class MapComponent implements OnInit {
         </div>
       `)
       .openOn(this.map);
+  }
+
+  private clearMarkers(): void {
+    Object.keys(this.markers).forEach(key => {
+      this.map.removeLayer(this.markers[key]);
+    });
+    this.markers = {};
   }
 
   initMap(): void {

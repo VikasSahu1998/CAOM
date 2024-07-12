@@ -11,9 +11,9 @@ export interface Plane {
   velocity: number;
   heading: number;
   vertical_rate: number;
-  sensors: any;
+  sensors: string;
   geo_altitude: number;
-  squawk: string | null;
+  squawk: string;
   spi: boolean;
   position_source: number;
 }

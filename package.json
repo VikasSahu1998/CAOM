@@ -21,6 +21,7 @@
     "@angular/platform-browser-dynamic": "^16.1.0",
     "@angular/router": "^16.1.0",
     "leaflet": "^1.9.4",
+    "leaflet-markercluster": "^0.2.2",
     "leaflet-rotatedmarker": "^0.2.0",
     "leaflet-routing-machine": "^3.2.12",
     "leaflet-textpath": "^1.2.3",
