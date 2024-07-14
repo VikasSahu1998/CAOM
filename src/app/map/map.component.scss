@@ -381,3 +381,13 @@ h1.example-app-name {
 .dropdown-menu>.dropdown:hover>.dropdown-menu {
   display: block;
 }
+
+
+.custom-plane-icon {
+  transition: transform 1s linear, top 1s linear, left 1s linear;
+}
+
+.leaflet-marker-icon {
+  transition: transform 1s linear, top 1s linear, left 1s linear;
+}
+

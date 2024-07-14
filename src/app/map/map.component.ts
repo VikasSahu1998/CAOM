@@ -149,7 +149,7 @@ export class MapComponent implements OnInit {
   private updateMapWithPlaneData(data: { satellite: string[][], terrestrial: string[][] }): void {
     if (data.satellite.length > 0 || data.terrestrial.length > 0) {
       [...data.satellite, ...data.terrestrial].forEach((plane: string[]) => {
-       
+  
         const target: Plane = {
           icao_address: plane[1],
           callsign: plane[7],
@@ -169,14 +169,21 @@ export class MapComponent implements OnInit {
           spi: plane[12] === 'true',
           position_source: parseInt(plane[13])
         };
-        
+  
         if (!isNaN(target.latitude) && !isNaN(target.longitude)) {
           if (this.markers[target.icao_address]) {
-         
-            this.markers[target.icao_address].setLatLng([target.latitude, target.longitude]);
-            const iconElement = this.markers[target.icao_address].getElement();
+            // Smoothly update the marker position and rotation
+            const marker = this.markers[target.icao_address];
+            const startLatLng = marker.getLatLng();
+            const endLatLng = new L.LatLng(target.latitude, target.longitude);
+            const duration = 1000; // Transition duration in milliseconds
+  
+            marker.setLatLng(endLatLng);
+  
+            // Update marker rotation
+            const iconElement = marker.getElement();
             if (iconElement) {
-              
+              iconElement.style.transition = `transform ${duration}ms linear`;
               iconElement.style.transform = `rotate(${target.heading}deg)`;
             }
           } else {
@@ -215,6 +222,7 @@ export class MapComponent implements OnInit {
             // Apply rotation via CSS after marker is added
             const iconElement = marker.getElement();
             if (iconElement) {
+              iconElement.style.transition = `transform 1s linear`;
               iconElement.style.transform = `rotate(${target.heading}deg)`;
             }
           }
