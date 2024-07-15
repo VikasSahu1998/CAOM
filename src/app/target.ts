@@ -16,4 +16,5 @@ export interface Plane {
   squawk: string;
   spi: boolean;
   position_source: number;
+  collection_type: 'satellite' | 'terrestrial'; // Add this line
 }

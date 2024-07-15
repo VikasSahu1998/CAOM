@@ -131,135 +131,131 @@ export class MapComponent implements OnInit {
     this.mobileQuery.removeListener(this._mobileQueryListener);
   }
 
-  spireAPI(): void {
+
+  spiresAPI(): void {
     if (this.subscription) {
       this.subscription.unsubscribe();
       this.subscription = null;
       this.clearMarkers();
     } else {
       this.subscription = this.flightService.listenToStream().subscribe({
-        next: (data: { satellite: string[][], terrestrial: string[][] }) => {
+        next: (data: { satellite: Plane[]; terrestrial: Plane[] }) => {
+          console.log('Received plane data:', data);
           this.updateMapWithPlaneData(data);
         },
         error: err => console.error('Error listening to stream', err)
       });
     }
   }
-
-  private updateMapWithPlaneData(data: { satellite: string[][], terrestrial: string[][] }): void {
-    if (data.satellite.length > 0 || data.terrestrial.length > 0) {
-      [...data.satellite, ...data.terrestrial].forEach((plane: string[]) => {
   
-        const target: Plane = {
-          icao_address: plane[1],
-          callsign: plane[7],
-          origin_country: plane[2],
-          time_position: plane[0],
-          last_contact: plane[0],
-          longitude: parseFloat(plane[2]),
-          latitude: parseFloat(plane[3]),
-          altitude_baro: parseFloat(plane[4]),
-          on_ground: plane[5] === 'true',
-          velocity: parseFloat(plane[6]),
-          heading: parseFloat(plane[7]),
-          vertical_rate: parseFloat(plane[8]),
-          sensors: plane[9],
-          geo_altitude: parseFloat(plane[10]),
-          squawk: plane[11],
-          spi: plane[12] === 'true',
-          position_source: parseInt(plane[13])
-        };
   
-        if (!isNaN(target.latitude) && !isNaN(target.longitude)) {
-          if (this.markers[target.icao_address]) {
-            // Smoothly update the marker position and rotation
-            const marker = this.markers[target.icao_address];
-            const startLatLng = marker.getLatLng();
-            const endLatLng = new L.LatLng(target.latitude, target.longitude);
-            const duration = 1000; // Transition duration in milliseconds
   
-            marker.setLatLng(endLatLng);
+  private updateMapWithPlaneData(data: { satellite: Plane[]; terrestrial: Plane[] }): void {
+    const planes = [...data.satellite, ...data.terrestrial];
   
-            // Update marker rotation
-            const iconElement = marker.getElement();
-            if (iconElement) {
-              iconElement.style.transition = `transform ${duration}ms linear`;
-              iconElement.style.transform = `rotate(${target.heading}deg)`;
-            }
-          } else {
-            // Create new marker
-            const planeSVG = `
-              <svg
-                fill="none"
-                height="20"
-                width="20"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 12 12"
-                class="plane-icon"
-                style="transform-origin: center;"
-              >
-                <path
-                  d="M7.052 9.416c-.314-.055-.58-.11-.593-.123-.022-.022.127-.857.153-.857.025 0 .905.682.991.768.087.087.112.22.053.28-.018.017-.29-.013-.604-.068zm2.667-2.23c-.07-.029-.77-.36-1.553-.735a94.104 94.104 0 00-1.457-.69c-.018-.005-.032-.431-.032-.948v-.94l.154.12c.085.067.197.165.25.217.093.093.097.093.131.001.03-.08.055-.097.158-.112a.443.443 0 01.215.026c.083.04.093.07.094.312l.002.267.342.285.342.284.054-.08c.063-.095.256-.132.363-.07.053.032.072.106.077.306l.008.265.47.386c.26.213.495.425.524.472.057.095.074.6.022.653-.02.019-.093.01-.164-.019zM6.073 9.85c-.097 0-.157-.173-.281-.816a27.339 27.339 0 01-.161-.889c-.037-.272-.042-5.76-.006-6.09.042-.385.133-.646.275-.788.063-.063.141-.112.173-.108.178.022.332.247.416.613.055.239.084 5.859.033 6.325-.052.463-.3 1.638-.36 1.697-.03.03-.07.056-.089.056zm-.941-.439c-.368.064-.604.085-.632.057-.024-.025-.03-.093-.014-.152.027-.098.079-.145.535-.494.277-.212.511-.386.52-.386.008 0 .052.197.096.437l.081.437-.586.101zM3.93 6.481c-.843.401-1.557.734-1.586.74-.083.02-.1-.022-.111-.265-.016-.364.008-.399.568-.863l.482-.399.001-.238c.003-.275.07-.371.255-.365.092.003.138.026.183.093l.06.09.34-.278.34-.279.007-.268c.004-.147.026-.286.05-.31.05-.05.328-.056.376-.007a.24.24 0 01.048.097c.011.054.053.032.271-.143l.258-.206.003.935c.002.514 0 .936-.004.937l-1.54.73z"
-                  fill="#0B0C10"
-                />
-              </svg>
-            `;
-  
-            const planeIcon = L.divIcon({
-              html: planeSVG,
-              className: 'custom-plane-icon',
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            });
-  
-            const marker = L.marker([target.latitude, target.longitude], { icon: planeIcon });
-            marker.addTo(this.map).on('click', () => {
-              this.displayPlaneData(target);
-            });
-  
-            this.markers[target.icao_address] = marker;
-  
-            // Apply rotation via CSS after marker is added
-            const iconElement = marker.getElement();
-            if (iconElement) {
-              iconElement.style.transition = `transform 1s linear`;
-              iconElement.style.transform = `rotate(${target.heading}deg)`;
-            }
-          }
-        }
-      });
-    } else {
+    if (planes.length === 0) {
       console.error('No valid plane data found', data);
+      return;
     }
+  
+    planes.forEach((plane: any) => {
+      const target: Plane = {
+        icao_address: plane.icao_address,
+        callsign: plane.callsign,
+        origin_country: plane.origin_country || '',
+        time_position: plane.timestamp,
+        last_contact: plane.ingestion_time,
+        longitude: parseFloat(plane.longitude),
+        latitude: parseFloat(plane.latitude),
+        altitude_baro: parseFloat(plane.altitude_baro),
+        on_ground: plane.on_ground,
+        velocity: parseFloat(plane.speed),
+        heading: parseFloat(plane.heading),
+        vertical_rate: parseFloat(plane.vertical_rate),
+        sensors: plane.source || '',
+        geo_altitude: parseFloat(plane.altitude_baro),
+        squawk: plane.squawk,
+        spi: plane.on_ground,
+        position_source: 1,
+        collection_type: plane.collection_type,
+      };
+  
+      if (isNaN(target.latitude) || isNaN(target.longitude)) {
+        console.error('Invalid coordinates for plane:', target);
+        return;
+      }
+  
+      if (this.markers[target.icao_address]) {
+        const marker = this.markers[target.icao_address];
+        marker.setLatLng([target.latitude, target.longitude]);
+      } else {
+        const planeSVG = `
+        <svg
+          fill="none"
+          height="20"
+          width="20"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 12 12"
+          class="plane-icon"
+          style="transform-origin: center;"
+        >
+          <path
+            d="M7.052 9.416c-.314-.055-.58-.11-.593-.123-.022-.022.127-.857.153-.857.025 0 .905.682.991.768.087.087.112.22.053.28-.018.017-.29-.013-.604-.068zm2.667-2.23c-.07-.029-.77-.36-1.553-.735a94.104 94.104 0 00-1.457-.69c-.018-.005-.032-.431-.032-.948v-.94l.154.12c.085.067.197.165.25.217.093.093.097.093.131.001.03-.08.055-.097.158-.112a.443.443 0 01.215.026c.083.04.093.07.094.312l.002.267.342.285.342.284.054-.08c.063-.095.256-.132.363-.07.053.032.072.106.077.306l.008.265.47.386c.26.213.495.425.524.472.057.095.074.6.022.653-.02.019-.093.01-.164-.019zM6.073 9.85c-.097 0-.157-.173-.281-.816a27.339 27.339 0 01-.161-.889c-.037-.272-.042-5.76-.006-6.09.042-.385.133-.646.275-.788.063-.063.141-.112.173-.108.178.022.332.247.416.613.055.239.084 5.859.033 6.325-.052.463-.3 1.638-.36 1.697-.03.03-.07.056-.089.056zm-.941-.439c-.368.064-.604.085-.632.057-.024-.025-.03-.093-.014-.152.027-.098.079-.145.535-.494.277-.212.511-.386.52-.386.008 0 .052.197.096.437l.081.437-.586.101zM3.93 6.481c-.843.401-1.557.734-1.586.74-.083.02-.1-.022-.111-.265-.016-.364.008-.399.568-.863l.482-.399.001-.238c.003-.275.07-.371.255-.365.092.003.138.026.183.093l.06.09.34-.278.34-.279.007-.268c.004-.147.026-.286.05-.31.05-.05.328-.056.376-.007a.24.24 0 01.048.097c.011.054.053.032.271-.143l.258-.206.003.935c.002.514 0 .936-.004.937l-1.54.73z"
+            fill="#0B0C10"
+          />
+        </svg>
+      `;
+        const planeIcon = L.divIcon({
+          html: planeSVG,
+          className: 'custom-plane-icon',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        });
+  
+        const marker = L.marker([target.latitude, target.longitude], { icon: planeIcon });
+        marker.addTo(this.map).on('click', () => {
+          this.displayPlaneData(target);
+        });
+  
+        this.markers[target.icao_address] = marker;
+      }
+    });
   }
   
-  private displayPlaneData(target: Plane): void {
-    L.popup()
-      .setLatLng([target.latitude, target.longitude])
-      .setContent(`
-        <div>
-          <p><strong>ICAO Address:</strong> ${target.icao_address}</p>
-          <p><strong>Callsign:</strong> ${target.callsign}</p>
-          <p><strong>Origin Country:</strong> ${target.origin_country}</p>
-          <p><strong>Longitude:</strong> ${target.longitude}</p>
-          <p><strong>Latitude:</strong> ${target.latitude}</p>
-          <p><strong>Altitude:</strong> ${target.altitude_baro}</p>
-          <p><strong>Velocity:</strong> ${target.velocity}</p>
-          <p><strong>Heading:</strong> ${target.heading}</p>
-          <p><strong>Vertical Rate:</strong> ${target.vertical_rate}</p>
-          <p><strong>Geo Altitude:</strong> ${target.geo_altitude}</p>
-          <p><strong>Squawk:</strong> ${target.squawk}</p>
-        </div>
-      `)
-      .openOn(this.map);
-  }
+  
+  
+  
+  
+  
 
-  private clearMarkers(): void {
-    Object.keys(this.markers).forEach(key => {
-      this.map.removeLayer(this.markers[key]);
-    });
-    this.markers = {};
-  }
+private displayPlaneData(target: Plane): void {
+  L.popup()
+    .setLatLng([target.latitude, target.longitude])
+    .setContent(`
+      <div>
+        <p><strong>ICAO Address:</strong> ${target.icao_address}</p>
+        <p><strong>Callsign:</strong> ${target.callsign}</p>
+        <p><strong>Origin Country:</strong> ${target.origin_country}</p>
+        <p><strong>Longitude:</strong> ${target.longitude}</p>
+        <p><strong>Latitude:</strong> ${target.latitude}</p>
+        <p><strong>Altitude:</strong> ${target.altitude_baro}</p>
+        <p><strong>Velocity:</strong> ${target.velocity}</p>
+        <p><strong>Heading:</strong> ${target.heading}</p>
+        <p><strong>Vertical Rate:</strong> ${target.vertical_rate}</p>
+        <p><strong>Geo Altitude:</strong> ${target.geo_altitude}</p>
+        <p><strong>Squawk:</strong> ${target.squawk}</p>
+      </div>
+    `)
+    .openOn(this.map);
+}
+
+private clearMarkers(): void {
+  Object.keys(this.markers).forEach(key => {
+    this.map.removeLayer(this.markers[key]);
+  });
+  this.markers = {};
+}
+
 
   initMap(): void {
     this.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20.5937, 78.9629], 5);
