@@ -1,11 +1,27 @@
 import { Plane } from '../target'; // Adjust the path as necessary
 import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StreamServiceService {
+  private apiUrl = 'https://api.airsafe.spire.com/v2/flights/live';
+  private apiKey = 'tHkcJG5CGq3VzgTjcApGNE5ZB0YNvE6b';
+
+  constructor(private http: HttpClient) { }
+
+  getLiveFlights(): Observable<any[]> {
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.apiKey}`
+    });
+
+    return this.http.get<any>(this.apiUrl, { headers }).pipe(
+      map(response => response.data)  
+    );
+  }
 
   private extractJSON(string: string): any[] {
     const results = string.match(/\{(?:[^{}])*\}/g);
@@ -28,18 +44,18 @@ export class StreamServiceService {
             observer.error('Unauthorized');
             return;
           }
-  
+
           const stream = response.body?.getReader();
           if (!stream) {
             observer.error('Stream not available');
             return;
           }
-  
+
           const currentData: { satellite: Plane[]; terrestrial: Plane[] } = {
             satellite: [],
             terrestrial: [],
           };
-  
+
           while (true) {
             const { value, done } = await stream.read() as { value: Uint8Array; done: boolean; };
             if (done) {
@@ -53,7 +69,7 @@ export class StreamServiceService {
                   currentData[parsed.collection_type].push(parsed);
                 }
               });
-  
+
               console.log('Current data:', currentData);
               observer.next(currentData);
             } catch (e) {

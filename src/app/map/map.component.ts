@@ -7,7 +7,7 @@ import 'leaflet-rotatedmarker';
 import { AuthService } from '../Service/auth.service';
 import { Router } from '@angular/router';
 import { StreamServiceService } from '../Service/stream-service.service';
-import { Plane } from '../target';
+import { Flight, Plane } from '../target';
 import { Subscription } from 'rxjs';
 
 declare module 'leaflet' {
@@ -50,7 +50,11 @@ export class MapComponent implements OnInit {
   private India_FIR!: L.TileLayer.WMS;
   private subscription: Subscription | null = null;
   menuOpen: boolean = false;
-
+  flightslive: Flight[] = [];
+  flights: Plane[] = [];  
+  mode: 'static' | 'animation' = 'static';
+  animationIndex: number = 0;
+  animationInterval: any;
   toggleMenu() {
     this.menuOpen = !this.menuOpen;
   }
@@ -127,22 +131,62 @@ export class MapComponent implements OnInit {
 
   }
 
+  fetchFlightData(): void {
+    this.flightService.getLiveFlights().subscribe(
+      (data: Flight[]) => {
+        this.flightslive = data;
+        this.updateFlightMarkers();
+      },
+      error => {
+        console.error('Error fetching flight data', error);
+      }
+    );
+  }
+
+  private updateFlightMarkers(): void {
+    this.flightslive.forEach(flight => {
+      const planeSVG = `
+        <svg height="20" width="20" style="transition: transform 0.5s ease; transform: rotate(${flight.heading}deg); transform-origin: center; background: none; border: none;" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 46.876 46.876" xml:space="preserve" fill="#000000" stroke="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#e3b021;" d="M26.602,24.568l15.401,6.072l-0.389-4.902c-10.271-7.182-9.066-6.481-14.984-10.615V2.681 c0-1.809-1.604-2.701-3.191-2.681c-1.587-0.021-3.19,0.872-3.19,2.681v12.44c-5.918,4.134-4.714,3.434-14.985,10.615l-0.39,4.903 l15.401-6.072c0,0-0.042,15.343-0.006,15.581l-5.511,3.771v2.957l7.044-2.427h3.271l7.046,2.427V43.92l-5.513-3.771 C26.644,39.909,26.602,24.568,26.602,24.568z"></path> </g> </g></svg>
+      `;
+  
+      const icon = L.divIcon({
+        html: planeSVG,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        className: 'custom-plane-icon'
+      });
+  
+      if (this.markers[flight.flight_id]) {
+        // Update existing marker
+        this.markers[flight.flight_id].setLatLng([flight.latitude, flight.longitude]).setIcon(icon);
+      } else {
+        // Create new marker
+        const marker = L.marker([flight.latitude, flight.longitude], { icon })
+          .bindPopup(`<b>Flight Number:</b> ${flight.flight_number}<br><b>Airline:</b> ${flight.airline_name}<br><b>Status:</b> ${flight.flight_state}`)
+          .addTo(this.map);
+        this.markers[flight.flight_id] = marker;
+      }
+    });
+  }
+  
+
+
   ngOnDestroy(): void {
     this.mobileQuery.removeListener(this._mobileQueryListener);
   }
 
 
-  
+
 
   // all world data
   // private updateMapWithPlaneData(data: { satellite: Plane[]; terrestrial: Plane[] }): void {
   //   const planes = [...data.satellite, ...data.terrestrial];
-  
+
   //   if (planes.length === 0) {
   //     console.error('No valid plane data found', data);
   //     return;
   //   }
-  
+
   //   planes.forEach((plane: any) => {
   //     const target: Plane = {
   //       icao_address: plane.icao_address,
@@ -164,23 +208,23 @@ export class MapComponent implements OnInit {
   //       position_source: 1,
   //       collection_type: plane.collection_type,
   //     };
-  
+
   //     if (isNaN(target.latitude) || isNaN(target.longitude)) {
   //       console.error('Invalid coordinates for plane:', target);
   //       return;
   //     }
-  
+
   //     const planeSVG = `
   //     <svg height="20" width="20" style="transform-origin: center; transform: rotate(${target.heading}deg);" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 46.876 46.876" xml:space="preserve" fill="#000000" stroke="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#e3b021;" d="M26.602,24.568l15.401,6.072l-0.389-4.902c-10.271-7.182-9.066-6.481-14.984-10.615V2.681 c0-1.809-1.604-2.701-3.191-2.681c-1.587-0.021-3.19,0.872-3.19,2.681v12.44c-5.918,4.134-4.714,3.434-14.985,10.615l-0.39,4.903 l15.401-6.072c0,0-0.042,15.343-0.006,15.581l-5.511,3.771v2.957l7.044-2.427h3.271l7.046,2.427V43.92l-5.513-3.771 C26.644,39.909,26.602,24.568,26.602,24.568z"></path> </g> </g></svg>
   //   `;
-  
+
   //     const planeIcon = L.divIcon({
   //       html: planeSVG,
   //       className: 'custom-plane-icon',
   //       iconSize: [20, 20],
   //       iconAnchor: [10, 10],
   //     });
-  
+
   //     if (this.markers[target.icao_address]) {
   //       const marker = this.markers[target.icao_address];
   //       marker.setLatLng([target.latitude, target.longitude]);
@@ -190,7 +234,7 @@ export class MapComponent implements OnInit {
   //       marker.addTo(this.map).on('click', () => {
   //         this.displayPlaneData(target);
   //       });
-  
+
   //       this.markers[target.icao_address] = marker;
   //     }
   //   });
@@ -201,6 +245,7 @@ export class MapComponent implements OnInit {
       this.subscription.unsubscribe();
       this.subscription = null;
       this.clearMarkers();
+      clearInterval(this.animationInterval);
     } else {
       this.subscription = this.flightService.listenToStream().subscribe({
         next: (data: { satellite: Plane[]; terrestrial: Plane[] }) => {
@@ -214,86 +259,104 @@ export class MapComponent implements OnInit {
 
   private updateMapWithPlaneData(data: { satellite: Plane[]; terrestrial: Plane[] }): void {
     const planes = [...data.satellite, ...data.terrestrial];
-  
+
     if (planes.length === 0) {
       console.error('No valid plane data found', data);
       return;
     }
-  
-    planes.forEach((plane: any) => {
-      // Check if the callsign starts with "IGO"
+
+    if (this.mode === 'animation') {
+      this.startAnimation(planes);
+    } else {
+      this.updateMarkers(planes);
+    }
+  }
+
+  private updateMarkers(planes: Plane[]): void {
+    planes.forEach((plane: Plane) => {
       if (!plane.callsign || !plane.callsign.startsWith('IGO')) {
-        return; // Skip this plane if the callsign does not start with "IGO"
-      }
-  
-      const target: Plane = {
-        icao_address: plane.icao_address,
-        callsign: plane.callsign,
-        origin_country: plane.origin_country || '',
-        time_position: plane.timestamp,
-        last_contact: plane.ingestion_time,
-        longitude: parseFloat(plane.longitude),
-        latitude: parseFloat(plane.latitude),
-        altitude_baro: parseFloat(plane.altitude_baro),
-        on_ground: plane.on_ground,
-        velocity: parseFloat(plane.speed),
-        heading: parseFloat(plane.heading),
-        vertical_rate: parseFloat(plane.vertical_rate),
-        sensors: plane.source || '',
-        geo_altitude: parseFloat(plane.altitude_baro),
-        squawk: plane.squawk,
-        spi: plane.on_ground,
-        position_source: 1,
-        collection_type: plane.collection_type,
-      };
-  
-      if (isNaN(target.latitude) || isNaN(target.longitude)) {
-        console.error('Invalid coordinates for plane:', target);
         return;
       }
-  
+
       const planeSVG = `
-      <svg height="20" width="20" style="transform-origin: center; transform: rotate(${target.heading}deg);" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 46.876 46.876" xml:space="preserve" fill="#000000" stroke="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#e3b021;" d="M26.602,24.568l15.401,6.072l-0.389-4.902c-10.271-7.182-9.066-6.481-14.984-10.615V2.681 c0-1.809-1.604-2.701-3.191-2.681c-1.587-0.021-3.19,0.872-3.19,2.681v12.44c-5.918,4.134-4.714,3.434-14.985,10.615l-0.39,4.903 l15.401-6.072c0,0-0.042,15.343-0.006,15.581l-5.511,3.771v2.957l7.044-2.427h3.271l7.046,2.427V43.92l-5.513-3.771 C26.644,39.909,26.602,24.568,26.602,24.568z"></path> </g> </g></svg>
+        <svg height="20" width="20" style="transform-origin: center; transform: rotate(${plane.heading}deg);" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 46.876 46.876" xml:space="preserve" fill="#000000" stroke="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#e3b021;" d="M26.602,24.568l15.401,6.072l-0.389-4.902c-10.271-7.182-9.066-6.481-14.984-10.615V2.681 c0-1.809-1.604-2.701-3.191-2.681c-1.587-0.021-3.19,0.872-3.19,2.681v12.44c-5.918,4.134-4.714,3.434-14.985,10.615l-0.39,4.903 l15.401-6.072c0,0-0.042,15.343-0.006,15.581l-5.511,3.771v2.957l7.044-2.427h3.271l7.046,2.427V43.92l-5.513-3.771 C26.644,39.909,26.602,24.568,26.602,24.568z"></path> </g> </g></svg>
       `;
-  
+
       const planeIcon = L.divIcon({
         html: planeSVG,
         className: 'custom-plane-icon',
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
-  
-      if (this.markers[target.icao_address]) {
-        const marker = this.markers[target.icao_address];
-        marker.setLatLng([target.latitude, target.longitude]);
+
+      if (this.markers[plane.icao_address]) {
+        const marker = this.markers[plane.icao_address];
+        marker.setLatLng([plane.latitude, plane.longitude]);
         marker.setIcon(planeIcon);
       } else {
-        const marker = L.marker([target.latitude, target.longitude], { icon: planeIcon });
+        const marker = L.marker([plane.latitude, plane.longitude], { icon: planeIcon });
         marker.addTo(this.map).on('click', () => {
-          this.displayPlaneData(target);
+          this.displayPlaneData(plane);
         });
-  
-        this.markers[target.icao_address] = marker;
+
+        this.markers[plane.icao_address] = marker;
       }
     });
   }
-  
-  private displayPlaneData(target: Plane): void {
+
+  private startAnimation(planes: Plane[]): void {
+    clearInterval(this.animationInterval);
+
+    this.animationInterval = setInterval(() => {
+      const plane = planes[this.animationIndex];
+      this.animationIndex = (this.animationIndex + 1) % planes.length;
+
+      if (!plane.callsign || !plane.callsign.startsWith('IGO')) {
+        return;
+      }
+
+      const planeSVG = `
+        <svg height="20" width="20" style="transform-origin: center; transform: rotate(${plane.heading}deg);" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 46.876 46.876" xml:space="preserve" fill="#000000" stroke="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path style="fill:#e3b021;" d="M26.602,24.568l15.401,6.072l-0.389-4.902c-10.271-7.182-9.066-6.481-14.984-10.615V2.681 c0-1.809-1.604-2.701-3.191-2.681c-1.587-0.021-3.19,0.872-3.19,2.681v12.44c-5.918,4.134-4.714,3.434-14.985,10.615l-0.39,4.903 l15.401-6.072c0,0-0.042,15.343-0.006,15.581l-5.511,3.771v2.957l7.044-2.427h3.271l7.046,2.427V43.92l-5.513-3.771 C26.644,39.909,26.602,24.568,26.602,24.568z"></path> </g> </g></svg>
+      `;
+
+      const planeIcon = L.divIcon({
+        html: planeSVG,
+        className: 'custom-plane-icon',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+
+      if (this.markers[plane.icao_address]) {
+        const marker = this.markers[plane.icao_address];
+        marker.setLatLng([plane.latitude, plane.longitude]);
+        marker.setIcon(planeIcon);
+      } else {
+        const marker = L.marker([plane.latitude, plane.longitude], { icon: planeIcon });
+        marker.addTo(this.map).on('click', () => {
+          this.displayPlaneData(plane);
+        });
+
+        this.markers[plane.icao_address] = marker;
+      }
+    }, 1000); // Adjust interval as needed
+  }
+
+  private displayPlaneData(plane: Plane): void {
     L.popup()
-      .setLatLng([target.latitude, target.longitude])
+      .setLatLng([plane.latitude, plane.longitude])
       .setContent(`
       <div>
-        <p><strong>ICAO Address:</strong> ${target.icao_address}</p>
-        <p><strong>Callsign:</strong> ${target.callsign}</p>
-        <p><strong>Origin Country:</strong> ${target.origin_country}</p>
-        <p><strong>Longitude:</strong> ${target.longitude}</p>
-        <p><strong>Latitude:</strong> ${target.latitude}</p>
-        <p><strong>Altitude:</strong> ${target.altitude_baro}</p>
-        <p><strong>Velocity:</strong> ${target.velocity}</p>
-        <p><strong>Heading:</strong> ${target.heading}</p>
-        <p><strong>Vertical Rate:</strong> ${target.vertical_rate}</p>
-        <p><strong>Geo Altitude:</strong> ${target.geo_altitude}</p>
-        <p><strong>Squawk:</strong> ${target.squawk}</p>
+        <p><strong>ICAO Address:</strong> ${plane.icao_address}</p>
+        <p><strong>Callsign:</strong> ${plane.callsign}</p>
+        <p><strong>Origin Country:</strong> ${plane.origin_country}</p>
+        <p><strong>Longitude:</strong> ${plane.longitude}</p>
+        <p><strong>Latitude:</strong> ${plane.latitude}</p>
+        <p><strong>Altitude:</strong> ${plane.altitude_baro}</p>
+        <p><strong>Velocity:</strong> ${plane.velocity}</p>
+        <p><strong>Heading:</strong> ${plane.heading}</p>
+        <p><strong>Vertical Rate:</strong> ${plane.vertical_rate}</p>
+        <p><strong>Geo Altitude:</strong> ${plane.geo_altitude}</p>
+        <p><strong>Squawk:</strong> ${plane.squawk}</p>
       </div>
     `)
       .openOn(this.map);
