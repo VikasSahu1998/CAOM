@@ -1,4 +1,3 @@
-
 import { Plane } from '../target'; // Adjust the path as necessary
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -15,10 +14,14 @@ export class StreamServiceService {
 
   listenToStream(): Observable<{ satellite: Plane[]; terrestrial: Plane[] }> {
     return new Observable(observer => {
-      fetch(`https://api.airsafe.spire.com/v2/targets/stream?compression=none`, {
+      const controller = new AbortController();
+      const signal = controller.signal;
+
+      fetch(`https://api.airsafe.spire.com/v2/targets/stream?compression=none&airline=6E`, {
         headers: {
           Authorization: `Bearer tHkcJG5CGq3VzgTjcApGNE5ZB0YNvE6b`,
         },
+        signal: signal
       })
         .then(async (response) => {
           if (response.status === 401) {
@@ -61,7 +64,12 @@ export class StreamServiceService {
         .catch(e => {
           observer.error('An error occurred while calling the endpoint');
         });
+
+      // Return the unsubscribe function
+      return () => {
+        controller.abort();
+        console.log('Stream aborted');
+      };
     });
   }
-  
 }
